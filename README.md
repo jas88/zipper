@@ -15,10 +15,15 @@ So: re-pack each patient's data into a 7z file per patient. This will turn 35 mi
 For each _numerical_ directory 123:
 
 1 If an output file 123.zip already exists, skip to step 5
+
 2 Create a subdirectory tmp123.zip
+
 3 Copy the files within 123 to tmp123.zip
+
 4 Rename tmp123.zip to 123.zip
+
 5 Delete the files within 123
+
 6 Move the completed ZIP file to a date-named subdirectory e.g. 2021-12-25
 
 Interruption (crash, system failure etc) at any stage can be gracefully resumed: 123.zip already exists iff the directory 123 had already been fully processed, meaning either interruption occurred during the deletion step, or deletion failed (sharing violation, permissions error etc).
