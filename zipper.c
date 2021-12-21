@@ -46,35 +46,46 @@ static int makeTempZip(const char *zName, int targetDir) {
     struct stat statBuff;
 
     // Final zip does not exist, so create it as tmp123.zip first
-    int fd = open(zName, O_RDWR | O_CREAT | O_TRUNC,0644);
-    if (fd==-1) {
+    int zipFD = open(zName, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    if (zipFD == -1) {
         perror(zName);
         return -1;
     }
 
     a = archive_write_new();
     archive_write_set_format_7zip(a);
-    archive_write_open_fd(a,fd);
+    archive_write_open_fd(a, zipFD);
     e = archive_entry_new();
 
     // dup since fdopendir consumes the FD
     d=fdopendir(dup(targetDir));
     if (d==NULL) {
         perror("opendir");
+        close(zipFD);
         return -1;
     }
     while ((de=readdir(d))!=NULL) {
         int fd,len;
-        if (de->d_type!=DT_REG)
+        if (de->d_type!=DT_REG) {
+            if (strcmp(de->d_name,".") && strcmp(de->d_name,".."))
+            {
+                fprintf(stderr,"Non-regular file '%s' found building '%s'\n",de->d_name,zName);
+                close(zipFD);
+                return -1;
+            }
             continue;
+        }
         if ((fd=openat(targetDir,de->d_name,O_RDONLY))==-1) {
             perror("de->d_name");
             closedir(d);
+            close(zipFD);
             return -1;
         }
         if (fstat(fd,&statBuff)) {
             perror("fstat");
             closedir(d);
+            close(zipFD);
+            close(fd);
             return -1;
         }
         archive_entry_clear(e);
@@ -90,6 +101,8 @@ static int makeTempZip(const char *zName, int targetDir) {
         if (len<0) {
             perror("read");
             closedir(d);
+            close(zipFD);
+            close(fd);
             return -1;
         }
         close(fd);
@@ -98,6 +111,7 @@ static int makeTempZip(const char *zName, int targetDir) {
     archive_entry_free(e);
     archive_write_close(a);
     archive_write_free(a);
+    close(zipFD);
     return 0;
 }
 
@@ -105,9 +119,11 @@ static int makeTempZip(const char *zName, int targetDir) {
  * Turn directory 123 into 123.7z then delete 123
  */
 static void process(const char *dir) {
+    DIR *delDir;
     char *zName;
     int targetDir,len;
     struct stat statBuff;
+    struct dirent *de;
 
     if ((targetDir=open(dir,O_RDONLY|O_DIRECTORY))==-1) {
         // Target missing. Race? Move on to the next target.
@@ -125,6 +141,7 @@ static void process(const char *dir) {
         // Create temp zip
         if (makeTempZip(zName,targetDir)) {
             free(zName);
+            close(targetDir);
             return;
         }
 
@@ -135,6 +152,16 @@ static void process(const char *dir) {
     free(zName);
 
     // Now the final zip exists, delete the source files+dir
+    if ((delDir=fdopendir(targetDir))==NULL)
+        die("fdopendir(%s)",dir);
+    while((de=readdir(delDir))!=NULL) {
+        if (de->d_type==DT_REG)
+            if (unlinkat(targetDir,de->d_name,0))
+                fprintf(stderr,"WARN:Error '%s' deleting '%s\\%s'\n", strerror(errno),dir,de->d_name);
+    }
+    if (unlinkat(AT_FDCWD,dir,AT_REMOVEDIR))
+        fprintf(stderr,"WARN:Error '%s' deleting '%s'\n",strerror(errno),dir);
+    closedir(delDir);
 }
 
 /*
@@ -186,7 +213,7 @@ static int listem(const char *dir) {
 }
 
 int main(int argc,char **argv) {
-    int opt;
+    int opt,rv;
     while((opt=getopt(argc,argv,"htv"))!=-1) {
         switch(opt) {
             case 'h':   // Help
@@ -209,5 +236,7 @@ int main(int argc,char **argv) {
     }
     if ((buff=malloc(buffSize)) == NULL)
         die("Out of memory allocating buffer");
-  return listem(".");
+  rv=listem(".");
+  free(buff);
+  return rv;
 }
