@@ -88,7 +88,7 @@ static void logPrint(int vLevel, const char *f, ...) /*@globals errno,stderr;@*/
 static void makeTempZip(const char *zName, int targetDir, struct zippingStats *zipStats) /*@globals errno,stderr;@*/ {
     DIR *d;
     void *buff;
-    unsigned char cLevel[2]={'\0','\0'};
+    unsigned char cLevel[2]={'0','\0'};
     struct dirent *de;
     struct archive *a;
     struct archive_entry *e;
@@ -105,10 +105,10 @@ static void makeTempZip(const char *zName, int targetDir, struct zippingStats *z
 
     a = archive_write_new();
     if (archive_write_set_format_7zip(a)!=ARCHIVE_OK
-        || archive_write_open_fd(a, zipFD)!=ARCHIVE_OK
         || archive_write_set_format_option(a,"7zip","compression","lzma2")!=ARCHIVE_OK
-        || archive_write_set_format_option(a,"7zip","compression-level",(const char*)cLevel)!=ARCHIVE_OK)
-        die("Unable to open archive FD");
+        || archive_write_set_format_option(a,"7zip","compression-level",(const char*)cLevel)!=ARCHIVE_OK
+        || archive_write_open_fd(a, zipFD)!=ARCHIVE_OK)
+        die("Unable to open archive FD due to '%s'", archive_error_string(a));
     e = archive_entry_new();
 
     // dup since fdopendir consumes the FD
@@ -138,7 +138,7 @@ static void makeTempZip(const char *zName, int targetDir, struct zippingStats *z
             die("Error writing archive header");
         len=read(fd, buff, buffSize);
         while(len>0) {
-            if (archive_write_data(a,buff,(size_t)len)!=ARCHIVE_OK)
+            if (archive_write_data(a,buff,(size_t)len)!=len)
                 die("Failed appending data to archive %s",zName);
             len=read(fd, buff, buffSize);
         }
@@ -195,6 +195,7 @@ static void process(const char *dir) /*@globals errno,stderr;@*/ {
     // Now the final zip exists, delete the source files+dir
     if ((delDir=fdopendir(targetDir))==NULL)
         die("fdopendir(%s)",dir);
+    rewinddir(delDir);
     while((de=readdir(delDir))!=NULL) {
         if (de->d_type==(unsigned char)DT_REG)
             if (unlinkat(targetDir,de->d_name,0)!=0)
@@ -326,6 +327,6 @@ int main(int argc,char **argv) /*@globals stderr,errno;@*/ {
     }
     init();
     rv=listem(".");
-    while(harvest()!=0);
+    while(harvest()==0);
     return rv;
 }
