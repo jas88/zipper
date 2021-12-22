@@ -1,4 +1,4 @@
-CFLAGS	:= -O2 -Wall -Wextra $(addprefix -I,$(wildcard /usr/local/opt/libarchive/include))
+CFLAGS	:= -O2 -Wall -Wextra -Werror $(addprefix -I,$(wildcard /usr/local/opt/libarchive/include))
 LDFLAGS	:= -larchive $(addprefix -L,$(wildcard /usr/local/opt/libarchive/lib))
 
 ifneq ($(shell uname -s),Darwin)
