@@ -11,8 +11,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-#include "archive.h"
-#include "archive_entry.h"
+#include <archive.h>
+#include <archive_entry.h>
 
 struct zippingStats { uint64_t raw, files, zips, packed; };
 static struct zippingStats stats={0, 0, 0, 0};
