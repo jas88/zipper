@@ -98,17 +98,14 @@ static void makeTempZip(const char *zName, int targetDir, struct zippingStats *z
     if ((buff=malloc(buffSize)) == NULL)
         die("Out of memory allocating buffer");
 
-    // Final zip does not exist, so create it as tmp123.zip first
-    int zipFD = open(zName, O_RDWR | O_CREAT | O_TRUNC, 0644);
-    if (zipFD == -1)
-        die("Unable to create temp file '%s'",zName);
-
     a = archive_write_new();
     if (archive_write_set_format_7zip(a)!=ARCHIVE_OK
-        || archive_write_set_format_option(a,"7zip","compression","lzma2")!=ARCHIVE_OK
-        || archive_write_set_format_option(a,"7zip","compression-level",(const char*)cLevel)!=ARCHIVE_OK
-        || archive_write_open_fd(a, zipFD)!=ARCHIVE_OK)
-        die("Unable to open archive FD due to '%s'", archive_error_string(a));
+       || archive_write_set_format_option(a,"7zip","compression","lzma2")!=ARCHIVE_OK
+       || archive_write_set_format_option(a,"7zip","compression-level",(const char*)cLevel)!=ARCHIVE_OK
+       )
+        die("Unable to enable 7zip format '%s' (%x)", archive_error_string(a), archive_errno(a));
+    if (archive_write_open_filename(a, zName)!=ARCHIVE_OK)
+        die("Unable to configure archive FD due to '%s' (%x)", archive_error_string(a), archive_errno(a));
     e = archive_entry_new();
 
     // dup since fdopendir consumes the FD
@@ -125,7 +122,11 @@ static void makeTempZip(const char *zName, int targetDir, struct zippingStats *z
             continue;
         }
         zipStats->files++;
-        if ((fd=openat(targetDir,de->d_name,O_RDONLY))==-1)
+        if ((fd=openat(targetDir,de->d_name,O_RDONLY
+#ifdef __MINGW32__
+                | O_BINARY
+#endif
+        ))==-1)
             die("Failed to open '%s' for '%s'",de->d_name,zName);
         if (fstat(fd,&statBuff)!=0)
             die("Failed to stat '%s' for '%s'",de->d_name,zName);
@@ -150,10 +151,9 @@ static void makeTempZip(const char *zName, int targetDir, struct zippingStats *z
     archive_entry_free(e);
     if (archive_write_close(a)!=ARCHIVE_OK || archive_write_free(a)!=ARCHIVE_OK)
         die("Error closing archive");
-    if (fstat(zipFD,&statBuff)!=0)
+    if (stat(zName,&statBuff)!=0)
         die("Failed to stat output file '%s'",zName);
     zipStats->raw=(uint64_t)statBuff.st_size;
-    (void)close(zipFD);
     free(buff);
 }
 
