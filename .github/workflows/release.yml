@@ -7,6 +7,10 @@ jobs:
     steps:
       - name: checkout repo
         uses: actions/checkout@v2
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libarchive libarchive-dev
       - run: make zipper
       - name: Get the version
         id: get_version
