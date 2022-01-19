@@ -15,3 +15,11 @@ jobs:
       - name: Get the version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@2.2.1
+        if: contains(github.ref, 'refs/tags/v')
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: zipper
+          tag: ${{ github.ref }}
+          overwrite: true

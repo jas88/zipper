@@ -15,3 +15,11 @@ jobs:
       with:
         install: gcc make
     - run: make zipper.exe
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@2.2.1
+      if: contains(github.ref, 'refs/tags/v')
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: zipper.exe
+        tag: ${{ github.ref }}
+        overwrite: true
