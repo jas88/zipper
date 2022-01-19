@@ -2,6 +2,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <poll.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -21,6 +22,7 @@ static int verbose=0;
 static size_t buffSize=(size_t)1<<20;
 static int childPipe;
 static struct pollfd childPoller={0,POLLIN,0};
+static time_t startTime;
 
 /*
  * Report a fatal error and quit
@@ -36,6 +38,29 @@ static void __attribute__((__noreturn__)) /*@noreturn@*/ die(const char *f, ...)
 }
 
 /*
+ * Conditionally report progress
+ */
+static void logPrint(int vLevel, const char *f, ...) /*@globals errno,stderr;@*/ {
+    va_list args;
+    va_start(args,f);
+    if (verbose>=vLevel)
+        (void)vfprintf(stderr,f,args);
+    va_end(args);
+}
+
+/*
+ * Report latest progress/throughput stats
+ */
+static void report() {
+    time_t elapsed=time(NULL)-startTime+1;
+    if (stats.packed>0)
+        fprintf(stderr,"Packed %'" PRIu64 " files totalling %'" PRIu64 " bytes into %'"
+                       PRIu64 " files totalling %'" PRIu64 " bytes (%" PRIu64 "%%) in %'"
+                       "ld s (%'" PRIu64 " bytes/sec)\n",
+                       stats.files,stats.raw,stats.zips,stats.packed,(100*stats.packed/stats.raw),elapsed,(stats.raw/elapsed));
+}
+
+/*
  * Reap children, updating stats as we go. Return 1 if no children left.
  */
 static int harvest() /*@globals errno,stderr;@*/ {
@@ -48,7 +73,10 @@ static int harvest() /*@globals errno,stderr;@*/ {
         stats.files+=cs.files;
         stats.packed+=cs.packed;
         stats.raw+=cs.raw;
-        stats.zips+=cs.zips;
+        stats.zips++;
+        report();
+    } else {
+        logPrint(0,"Missing stats update from worker\n");
     }
     return 0;
 }
@@ -75,16 +103,8 @@ static int becomeWorker() /*@globals errno,stderr;@*/ {
 }
 
 /*
- * Conditionally report progress
+ * Turn the specified directory into a 7z file, returning stats
  */
-static void logPrint(int vLevel, const char *f, ...) /*@globals errno,stderr;@*/ {
-    va_list args;
-    va_start(args,f);
-    if (verbose>=vLevel)
-        (void)vfprintf(stderr,f,args);
-    va_end(args);
-}
-
 static void makeTempZip(const char *zName, int targetDir, struct zippingStats *zipStats) /*@globals errno,stderr;@*/ {
     DIR *d;
     void *buff;
@@ -146,14 +166,17 @@ static void makeTempZip(const char *zName, int targetDir, struct zippingStats *z
         if (len<0)
             die("Failed reading '%s' for '%s'",de->d_name,zName);
         (void)close(fd);
+        errno=0;
     }
+    if (errno!=0)
+        die("Error while enumerating input directory for '%s'",zName);
     (void)closedir(d);
     archive_entry_free(e);
     if (archive_write_close(a)!=ARCHIVE_OK || archive_write_free(a)!=ARCHIVE_OK)
         die("Error closing archive");
     if (stat(zName,&statBuff)!=0)
         die("Failed to stat output file '%s'",zName);
-    zipStats->raw=(uint64_t)statBuff.st_size;
+    zipStats->packed=(uint64_t)statBuff.st_size;
     free(buff);
 }
 
@@ -275,6 +298,7 @@ static int listem(const char *dir) /*@globals errno,stderr@*/ {
 
 static void init() /*@globals errno,stderr;@*/ {
     int pipes[2];
+    startTime=time(NULL);
 
     if (pipe(pipes)==-1) {
         die("pipe");
