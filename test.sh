@@ -10,6 +10,8 @@
 
 set -e
 
+./zipper -t
+
 DIRS="${1:-100}"
 SIZE="${2:-1M}"
 
@@ -21,3 +23,4 @@ do
                 dd if=/dev/urandom of="$i/$j.dcm" bs="$SIZE" count=1 status=none
         done
 done
+
