@@ -28,3 +28,4 @@ For each _numerical_ directory 123:
 
 Interruption (crash, system failure etc) at any stage can be gracefully resumed: 123.zip already exists iff the directory 123 had already been fully processed, meaning either interruption occurred during the deletion step, or deletion failed (sharing violation, permissions error etc).
 
+Ctrl-C and ctrl-\ (SIGINT and SIGQUIT) respectively as well as SIGTERM will trigger a graceful exit, i.e. zipper will no longer start new worker processes and wait for all existing ones to finish their work before exiting.
