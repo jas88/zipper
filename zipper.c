@@ -24,6 +24,20 @@ static int childPipe;
 static struct pollfd childPoller={0,POLLIN,0};
 static time_t startTime;
 
+static int quit=0;
+/*
+ * Handle ctrl-C etc by triggering a graceful exit
+ */
+void term_handler(__attribute__((unused)) int signum) {
+  static const char exitmsg[] = "Quit instruction received, exiting after current jobs finish\n";
+  static const char quitmsg[] = "Multiple quit instructions received, aborting\n";
+  if (quit++) {
+    (void)!write(STDERR_FILENO,quitmsg,sizeof(quitmsg));
+  } else {
+    (void)!write(STDERR_FILENO,exitmsg,sizeof(exitmsg));
+  }
+}
+
 /*
  * Report a fatal error and quit
  */
@@ -283,7 +297,7 @@ static int listem(const char *dir) /*@globals errno,stderr@*/ {
         perror("opendir");
         return -1;
     }
-    while ((de=readdir(d))!=NULL) {
+    while (!quit && (de=readdir(d))!=NULL) {
         logPrint(2, "Considering '%s'\n", de->d_name);
         if (isnumeric(de->d_name)) {
             logPrint(3, "Processing '%s'\n", de->d_name);
@@ -309,6 +323,9 @@ static void init() /*@globals errno,stderr;@*/ {
 
 int main(int argc,char **argv) /*@globals stderr,errno;@*/ {
     int opt,rv;
+    signal(SIGINT,term_handler);
+    signal(SIGQUIT,term_handler);
+    signal(SIGTERM,term_handler);
     while((opt=getopt(argc,argv,"c:htvw:"))!=-1) {
         switch(opt) {
             case 'c':
