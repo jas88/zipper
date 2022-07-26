@@ -28,13 +28,13 @@ static int quit=0;
 /*
  * Handle ctrl-C etc by triggering a graceful exit
  */
-void term_handler(int signum) {
+void term_handler(__attribute__((unused)) int signum) {
   static const char exitmsg[] = "Quit instruction received, exiting after current jobs finish\n";
   static const char quitmsg[] = "Multiple quit instructions received, aborting\n";
   if (quit++) {
-    write(STDERR_FILENO,quitmsg,sizeof(quitmsg));
+    (void)write(STDERR_FILENO,quitmsg,sizeof(quitmsg));
   } else {
-    write(STDERR_FILENO,exitmsg,sizeof(exitmsg));
+    (void)write(STDERR_FILENO,exitmsg,sizeof(exitmsg));
   }
 }
 
