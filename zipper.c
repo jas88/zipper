@@ -209,7 +209,7 @@ static void process(const char *dir) /*@globals errno,stderr;@*/ {
     if ((targetDir=open(dir,O_RDONLY|O_DIRECTORY))==-1) {
         // Target missing. Race? Move on to the next target.
         // (We're a worker now, so die only applies to this dir)
-        die(dir);
+        die("%s",dir);
     }
 
     len=strlen(dir)+7;
