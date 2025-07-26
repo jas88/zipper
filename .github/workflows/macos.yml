@@ -18,7 +18,11 @@ jobs:
         brew install libarchive
     
     - name: Build zipper
-      run: make
+      run: |
+        export CFLAGS="-O2 -Wall -Wextra -Werror -I$(brew --prefix libarchive)/include"
+        export LDFLAGS="-L$(brew --prefix libarchive)/lib/libarchive.a"
+        make
+        file zipper
     
     - name: Run self-tests
       run: ./zipper -t
