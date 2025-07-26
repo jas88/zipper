@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 
 #include <archive.h>
 #include <archive_entry.h>
@@ -19,6 +20,7 @@ struct zippingStats { uint64_t raw, files, zips, packed; };
 static struct zippingStats stats={0, 0, 0, 0};
 static signed int workers=4,level=3;
 static int verbose=0;
+static int idle_priority=0;
 static size_t buffSize=(size_t)1<<20;
 static int childPipe;
 static struct pollfd childPoller={0,POLLIN,0};
@@ -60,6 +62,23 @@ static void logPrint(int vLevel, const char *f, ...) /*@globals errno,stderr;@*/
     if (verbose>=vLevel)
         (void)vfprintf(stderr,f,args);
     va_end(args);
+}
+
+/*
+ * Set process to idle priority if requested
+ */
+static void set_idle_priority() {
+    if (idle_priority) {
+#ifdef PRIO_PROCESS
+        if (setpriority(PRIO_PROCESS, 0, 19) != 0) {
+            logPrint(1, "Warning: Failed to set idle priority: %s\n", strerror(errno));
+        } else {
+            logPrint(2, "Set process to idle priority\n");
+        }
+#else
+        logPrint(1, "Warning: Idle priority not supported on this platform\n");
+#endif
+    }
 }
 
 /*
@@ -107,6 +126,7 @@ static int becomeWorker() /*@globals errno,stderr;@*/ {
         case 0: // We're the worker now
             if (close(childPoller.fd)!=0)
                 die("close internal pipe");
+            set_idle_priority();
             return 1;
         case -1:    // Error!
             die("Fork for worker");
@@ -326,7 +346,7 @@ int main(int argc,char **argv) /*@globals stderr,errno;@*/ {
     signal(SIGINT,term_handler);
     signal(SIGQUIT,term_handler);
     signal(SIGTERM,term_handler);
-    while((opt=getopt(argc,argv,"c:htvw:"))!=-1) {
+    while((opt=getopt(argc,argv,"c:hitvw:"))!=-1) {
         switch(opt) {
             case 'c':
                 level=(int)strtol(optarg,NULL,10);
@@ -337,8 +357,11 @@ int main(int argc,char **argv) /*@globals stderr,errno;@*/ {
                 break;
 
             case 'h':   // Help
-                (void)fprintf(stderr,"Usage:%s (switches)\n-c n\t- Compression level n, 0-9\n-h\t- print this help text\n-t\t- run self-test\n-v\t- Increase verbosity\n-w n\t- Use n simultaneous worker processes to use, 1-99, default %d\n",argv[0],workers);
+                (void)fprintf(stderr,"Usage:%s (switches)\n-c n\t- Compression level n, 0-9\n-h\t- print this help text\n-i\t- run with idle priority\n-t\t- run self-test\n-v\t- Increase verbosity\n-w n\t- Use n simultaneous worker processes to use, 1-99, default %d\n",argv[0],workers);
             return 0;
+            case 'i':   // Idle priority
+                idle_priority=1;
+                break;
 
             case 't':   // Self-test
                 if (tests()) {
@@ -367,6 +390,7 @@ int main(int argc,char **argv) /*@globals stderr,errno;@*/ {
         }
     }
     init();
+    set_idle_priority();
     rv=listem(".");
     while(harvest()==0);
     return rv;
