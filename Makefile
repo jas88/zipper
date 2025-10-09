@@ -1,7 +1,10 @@
-CFLAGS	:= -O2 -Wall -Wextra -Werror $(addprefix -I,$(wildcard /usr/local/opt/libarchive/include)) $(CFLAGS)
-LDFLAGS	:= -larchive $(addprefix -L,$(wildcard /usr/local/opt/libarchive/lib)) $(pkg-config --static --libs bzip2) $(pkg-config --static --libs libzstd) $(pkg-config --static --libs libdeflate) $(pkg-config --static --libs liblzma)
+BREW_PREFIX := $(shell brew --prefix 2>/dev/null || echo /usr/local)
+LIBARCHIVE_PREFIX := $(shell brew --prefix libarchive 2>/dev/null || echo $(BREW_PREFIX)/opt/libarchive)
 
-CFLAGS += $(pkg-config --cflags bzip2) $(pkg-config --cflags libzstd) $(pkg-config --cflags libdeflate) $(pkg-config --cflags libzstd)
+CFLAGS	:= -O2 -Wall -Wextra -Werror -I$(LIBARCHIVE_PREFIX)/include $(CFLAGS)
+LDFLAGS	:= -larchive -L$(LIBARCHIVE_PREFIX)/lib $(shell pkg-config --static --libs bzip2 2>/dev/null) $(shell pkg-config --static --libs libzstd 2>/dev/null) $(shell pkg-config --static --libs libdeflate 2>/dev/null) $(shell pkg-config --static --libs liblzma 2>/dev/null)
+
+CFLAGS += $(shell pkg-config --cflags bzip2 2>/dev/null) $(shell pkg-config --cflags libzstd 2>/dev/null) $(shell pkg-config --cflags libdeflate 2>/dev/null) $(shell pkg-config --cflags liblzma 2>/dev/null)
 
 ifneq ($(shell uname -s),Darwin)
 LDFLAGS	+=  -lacl	 -s -static
@@ -13,7 +16,7 @@ OBJS	:= zipper.o
 all:	$(BINS)
 
 zipper:	$(OBJS)
-	gcc -o $@ $< -llzma -llibz.a $(LDFLAGS)
+	gcc -o $@ $< -lz $(LDFLAGS)
 
 zipper.exe:
 	gcc -Wall -Wextra -Werror -o zipper.exe zipper.c -I/mingw64/include -L/mingw64/lib -larchive -D_FILE_OFFSET_BITS=64
