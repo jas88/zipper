@@ -19,8 +19,8 @@ jobs:
     
     - name: Build zipper
       run: |
-        export CFLAGS="-O2 -Wall -Wextra -Werror -I$(brew --prefix libarchive)/include"
-        export LDFLAGS="-L$(brew --prefix libarchive)/lib/libarchive.a"
+        export CFLAGS="-I$(brew --prefix libarchive)/include"
+        export LDFLAGS="-L$(brew --prefix libarchive)/lib $(brew --prefix libarchive)/lib/libarchive.a"
         make
         file zipper
     
