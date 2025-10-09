@@ -1,10 +1,12 @@
-BREW_PREFIX := $(shell brew --prefix 2>/dev/null || echo /usr/local)
-LIBARCHIVE_PREFIX := $(shell brew --prefix libarchive 2>/dev/null || echo $(BREW_PREFIX)/opt/libarchive)
+ifeq ($(shell uname -s),Darwin)
+# macOS: Set PKG_CONFIG_PATH for Homebrew libarchive
+PKG_CONFIG := PKG_CONFIG_PATH=$(shell brew --prefix libarchive)/lib/pkgconfig:$$PKG_CONFIG_PATH pkg-config
+else
+PKG_CONFIG := pkg-config
+endif
 
-CFLAGS	:= -O2 -Wall -Wextra -Werror -I$(LIBARCHIVE_PREFIX)/include $(CFLAGS)
-LDFLAGS	:= -larchive -L$(LIBARCHIVE_PREFIX)/lib $(shell pkg-config --static --libs bzip2 2>/dev/null) $(shell pkg-config --static --libs libzstd 2>/dev/null) $(shell pkg-config --static --libs libdeflate 2>/dev/null) $(shell pkg-config --static --libs liblzma 2>/dev/null)
-
-CFLAGS += $(shell pkg-config --cflags bzip2 2>/dev/null) $(shell pkg-config --cflags libzstd 2>/dev/null) $(shell pkg-config --cflags libdeflate 2>/dev/null) $(shell pkg-config --cflags liblzma 2>/dev/null)
+CFLAGS	:= -O2 -Wall -Wextra -Werror $(shell $(PKG_CONFIG) --cflags libarchive 2>/dev/null) $(CFLAGS)
+LDFLAGS	:= $(shell $(PKG_CONFIG) --libs libarchive 2>/dev/null) -lz
 
 ifneq ($(shell uname -s),Darwin)
 LDFLAGS	+=  -lacl	 -s -static
@@ -16,7 +18,7 @@ OBJS	:= zipper.o
 all:	$(BINS)
 
 zipper:	$(OBJS)
-	gcc -o $@ $< -lz $(LDFLAGS)
+	gcc -o $@ $< $(LDFLAGS)
 
 zipper.exe:
 	gcc -Wall -Wextra -Werror -o zipper.exe zipper.c -I/mingw64/include -L/mingw64/lib -larchive -D_FILE_OFFSET_BITS=64
