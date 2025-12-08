@@ -1,8 +1,15 @@
-CFLAGS	:= -O2 -Wall -Wextra -Werror $(addprefix -I,$(wildcard /usr/local/opt/libarchive/include))
-LDFLAGS	:= -larchive $(addprefix -L,$(wildcard /usr/local/opt/libarchive/lib))
+ifeq ($(shell uname -s),Darwin)
+# macOS: Set PKG_CONFIG_PATH for Homebrew libarchive
+PKG_CONFIG := PKG_CONFIG_PATH=$(shell brew --prefix libarchive)/lib/pkgconfig:$$PKG_CONFIG_PATH pkg-config
+else
+PKG_CONFIG := pkg-config
+endif
+
+CFLAGS	:= -O2 -Wall -Wextra -Werror $(shell $(PKG_CONFIG) --cflags libarchive 2>/dev/null) $(CFLAGS)
+LDFLAGS	:= $(shell $(PKG_CONFIG) --libs libarchive 2>/dev/null) -lz
 
 ifneq ($(shell uname -s),Darwin)
-LDFLAGS	+= -lacl -llzma -lbz2 -lz -s -static
+LDFLAGS	+= -lacl -llzma -lbz2 -s -static
 endif
 
 BINS	:= zipper

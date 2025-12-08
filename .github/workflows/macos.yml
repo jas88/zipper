@@ -1,0 +1,35 @@
+name: macOS build and test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        brew install libarchive
+    
+    - name: Build zipper
+      run: |
+        export CFLAGS="-I$(brew --prefix libarchive)/include"
+        export LDFLAGS="-L$(brew --prefix libarchive)/lib $(brew --prefix libarchive)/lib/libarchive.a"
+        make
+        file zipper
+    
+    - name: Run self-tests
+      run: ./zipper -t
+    
+    - name: Generate test data and run integration test
+      run: |
+        ./test.sh 10 1K
+        ./zipper -v
+        # Verify archives were created
+        ls -la *.7z || { echo "ERROR: No archives found"; exit 1; }
