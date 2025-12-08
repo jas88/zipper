@@ -9,7 +9,7 @@ CFLAGS	:= -O2 -Wall -Wextra -Werror $(shell $(PKG_CONFIG) --cflags libarchive 2>
 LDFLAGS	:= $(shell $(PKG_CONFIG) --libs libarchive 2>/dev/null) -lz
 
 ifneq ($(shell uname -s),Darwin)
-LDFLAGS	+=  -lacl	 -s -static
+LDFLAGS	+= -lacl -llzma -lbz2 -s -static
 endif
 
 BINS	:= zipper
