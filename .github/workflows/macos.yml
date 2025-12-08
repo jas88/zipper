@@ -32,4 +32,4 @@ jobs:
         ./test.sh 10 1K
         ./zipper -v
         # Verify archives were created
-        ls -la *.7z || echo "No archives found"
+        ls -la *.7z || { echo "ERROR: No archives found"; exit 1; }
