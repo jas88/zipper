@@ -70,7 +70,7 @@ jobs:
           echo "$f:" $actual
           [ "$actual" = "$expected" ] || { echo "ERROR: unexpected entries in $f"; exit 1; }
         done
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: zipper-win64
         path: zipper-win64.zip
