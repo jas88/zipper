@@ -1,25 +1,47 @@
-name: Windows release
+name: Windows build
 on:
   push:
+    branches: [ main ]
     tags:
       - v*
+  pull_request:
+    branches: [ main ]
 jobs:
   win64:
-    runs-on: windows-2019
+    runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
     steps:
     - uses: actions/checkout@v7
+    # zipper uses fork()/poll()/wait(), so it is built against the MSYS2
+    # POSIX runtime (msys-2.0.dll), not as a native MinGW binary.
     - uses: msys2/setup-msys2@v2
       with:
-        install: gcc make
+        msystem: MSYS
+        update: true
+        install: gcc make pkgconf libarchive-devel
     - run: make zipper.exe
+    - name: Package with runtime DLLs
+      run: |
+        mkdir zipper-win64
+        cp zipper.exe zipper-win64/
+        ldd zipper.exe | awk '$3 ~ /^\/usr\/bin\// {print $3}' | sort -u | xargs -r cp -t zipper-win64/
+        ls -l zipper-win64
+        bsdtar -a -cf zipper-win64.zip zipper-win64
+    - name: Self-test using only the bundled DLLs
+      run: |
+        cd zipper-win64
+        PATH=/c/Windows/System32 ./zipper.exe -t
+    - uses: actions/upload-artifact@v4
+      with:
+        name: zipper-win64
+        path: zipper-win64.zip
     - name: Upload binaries to release
       uses: svenstaro/upload-release-action@2.11.5
       if: contains(github.ref, 'refs/tags/v')
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: zipper.exe
+        file: zipper-win64.zip
         tag: ${{ github.ref }}
         overwrite: true
