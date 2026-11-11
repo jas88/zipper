@@ -26,15 +26,21 @@ jobs:
     - run: make zipper.exe
     - name: Package with runtime DLLs
       run: |
+        ./zipper.exe -t
+        ldd zipper.exe
         mkdir zipper-win64
         cp zipper.exe zipper-win64/
         ldd zipper.exe | awk '$3 ~ /^\/usr\/bin\// {print $3}' | sort -u | xargs -r cp -t zipper-win64/
         ls -l zipper-win64
         bsdtar -a -cf zipper-win64.zip zipper-win64
+    # Outside MSYS, as a user would run it: only the bundled DLLs and
+    # System32 are available to the loader.
     - name: Self-test using only the bundled DLLs
+      shell: pwsh
       run: |
-        cd zipper-win64
-        PATH=/c/Windows/System32 ./zipper.exe -t
+        $env:PATH = "C:\Windows\System32"
+        & .\zipper-win64\zipper.exe -t
+        if ($LASTEXITCODE -ne 0) { throw "self-test exited $LASTEXITCODE" }
     - uses: actions/upload-artifact@v4
       with:
         name: zipper-win64
