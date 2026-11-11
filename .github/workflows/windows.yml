@@ -16,11 +16,13 @@ jobs:
     - uses: actions/checkout@v7
     # zipper uses fork()/poll()/wait(), so it is built against the MSYS2
     # POSIX runtime (msys-2.0.dll), not as a native MinGW binary.
+    # openssl-devel: libarchive.pc Requires.private libcrypto, but
+    # libarchive-devel does not depend on it.
     - uses: msys2/setup-msys2@v2
       with:
         msystem: MSYS
         update: true
-        install: gcc make pkgconf libarchive-devel
+        install: gcc make pkgconf libarchive-devel openssl-devel
     - run: make zipper.exe
     - name: Package with runtime DLLs
       run: |
