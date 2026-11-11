@@ -1,25 +1,84 @@
-name: Windows release
+name: Windows build
 on:
   push:
+    branches: [ main ]
     tags:
       - v*
+  pull_request:
+    branches: [ main ]
 jobs:
   win64:
-    runs-on: windows-2019
+    runs-on: windows-latest
     defaults:
       run:
         shell: msys2 {0}
     steps:
     - uses: actions/checkout@v7
+    # zipper uses fork()/poll()/wait(), so it is built against the MSYS2
+    # POSIX runtime (msys-2.0.dll), not as a native MinGW binary.
+    # openssl-devel: libarchive.pc Requires.private libcrypto, but
+    # libarchive-devel does not depend on it.
     - uses: msys2/setup-msys2@v2
       with:
-        install: gcc make
+        msystem: MSYS
+        update: true
+        install: gcc make pkgconf libarchive-devel openssl-devel
     - run: make zipper.exe
+    - name: Package with runtime DLLs
+      run: |
+        ./zipper.exe -t
+        ldd zipper.exe
+        mkdir zipper-win64
+        cp zipper.exe zipper-win64/
+        ldd zipper.exe | awk '$3 ~ /^\/usr\/bin\// {print $3}' | sort -u | xargs -r cp -t zipper-win64/
+        ls -l zipper-win64
+        bsdtar -a -cf zipper-win64.zip zipper-win64
+    # Real run outside MSYS, as a user would launch it: only the bundled
+    # DLLs and System32 are available to the loader. zipper turns each
+    # numeric directory under the cwd into <name>.7z (via forked workers)
+    # and removes the directory, so check for exactly that.
+    - name: Integration test using only the bundled DLLs
+      shell: pwsh
+      run: |
+        $dirs = '0000000001', '0000000002'
+        foreach ($d in $dirs) {
+          New-Item -ItemType Directory -Path "testrun\$d" | Out-Null
+          foreach ($j in 1..5) {
+            $b = [byte[]]::new(65536)
+            [Security.Cryptography.RandomNumberGenerator]::Fill($b)
+            [IO.File]::WriteAllBytes("$PWD\testrun\$d\$j.dcm", $b)
+          }
+        }
+        $env:PATH = "C:\Windows\System32"
+        # As for a user: no TMPDIR, so zipper must fall back to TMP/TEMP
+        Remove-Item Env:TMPDIR -ErrorAction SilentlyContinue
+        Push-Location testrun
+        & ..\zipper-win64\zipper.exe -v
+        $rc = $LASTEXITCODE
+        Pop-Location
+        if ($rc -ne 0) { throw "zipper exited $rc" }
+        foreach ($d in $dirs) {
+          if (-not (Test-Path "testrun\$d.7z")) { throw "testrun\$d.7z not created" }
+          if (Test-Path "testrun\$d") { throw "testrun\$d not removed" }
+        }
+        Get-ChildItem testrun
+    - name: Verify archive contents
+      run: |
+        expected=$(printf '%s\n' 1.dcm 2.dcm 3.dcm 4.dcm 5.dcm)
+        for f in testrun/*.7z; do
+          actual=$(bsdtar -tf "$f" | sort)
+          echo "$f:" $actual
+          [ "$actual" = "$expected" ] || { echo "ERROR: unexpected entries in $f"; exit 1; }
+        done
+    - uses: actions/upload-artifact@v4
+      with:
+        name: zipper-win64
+        path: zipper-win64.zip
     - name: Upload binaries to release
       uses: svenstaro/upload-release-action@2.11.5
       if: contains(github.ref, 'refs/tags/v')
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: zipper.exe
+        file: zipper-win64.zip
         tag: ${{ github.ref }}
         overwrite: true

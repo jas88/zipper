@@ -20,7 +20,6 @@ jobs:
     - name: Build zipper
       run: |
         export CFLAGS="-I$(brew --prefix libarchive)/include"
-        export LDFLAGS="-L$(brew --prefix libarchive)/lib $(brew --prefix libarchive)/lib/libarchive.a"
         make
         file zipper
     

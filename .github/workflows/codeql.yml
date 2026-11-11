@@ -32,7 +32,7 @@ jobs:
     - name: Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install libarchive-dev libacl1-dev liblzma-dev libbz2-dev
+        sudo apt-get install pkg-config libarchive-dev libacl1-dev liblzma-dev libbz2-dev libzstd-dev
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
