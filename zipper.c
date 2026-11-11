@@ -27,6 +27,7 @@ static struct pollfd childPoller={0,POLLIN,0};
 static time_t startTime;
 
 static int quit=0;
+static int workerFailed=0;
 /*
  * Handle ctrl-C etc by triggering a graceful exit
  */
@@ -95,10 +96,15 @@ static void report() {
 
 /*
  * Reap children, updating stats as we go. Return 1 if no children left.
+ * Records any worker that did not exit successfully in workerFailed.
  */
 static int harvest() /*@globals errno,stderr;@*/ {
-    if (wait(NULL)==-1 && errno==ECHILD)
+    int status;
+    pid_t pid=wait(&status);
+    if (pid==-1 && errno==ECHILD)
         return 1;
+    if (pid!=-1 && !(WIFEXITED(status) && WEXITSTATUS(status)==EXIT_SUCCESS))
+        workerFailed=1;
     if (poll(&childPoller,1,0)==1) {
         struct zippingStats cs;
         if (read(childPoller.fd,&cs,sizeof(cs))!=(ssize_t)sizeof(cs))
@@ -194,7 +200,7 @@ static void makeTempZip(const char *zName, int targetDir, struct zippingStats *z
         len=read(fd, buff, buffSize);
         while(len>0) {
             if (archive_write_data(a,buff,(size_t)len)!=len)
-                die("Failed appending data to archive %s",zName);
+                die("Failed appending data to archive %s: %s",zName,archive_error_string(a));
             len=read(fd, buff, buffSize);
         }
         if (len<0)
@@ -389,9 +395,26 @@ int main(int argc,char **argv) /*@globals stderr,errno;@*/ {
                 break;
         }
     }
+#ifdef __CYGWIN__
+    /* libarchive's 7-Zip writer buffers into a temp file in $TMPDIR, else
+     * /tmp. Run from an unpacked zip rather than an MSYS2/Cygwin install,
+     * /tmp doesn't exist, so fall back to Windows' TMP/TEMP (the runtime
+     * converts both to POSIX paths at startup). */
+    if (getenv("TMPDIR")==NULL) {
+        const char *tmp=getenv("TMP");
+        if (tmp==NULL)
+            tmp=getenv("TEMP");
+        if (tmp!=NULL && setenv("TMPDIR",tmp,0)!=0)
+            die("setenv TMPDIR");
+    }
+#endif
     init();
     set_idle_priority();
     rv=listem(".");
     while(harvest()==0);
+    if (rv==0 && workerFailed) {
+        logPrint(0,"One or more workers failed\n");
+        rv=EXIT_FAILURE;
+    }
     return rv;
 }

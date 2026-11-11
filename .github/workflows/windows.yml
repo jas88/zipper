@@ -50,6 +50,8 @@ jobs:
           }
         }
         $env:PATH = "C:\Windows\System32"
+        # As for a user: no TMPDIR, so zipper must fall back to TMP/TEMP
+        Remove-Item Env:TMPDIR -ErrorAction SilentlyContinue
         Push-Location testrun
         & ..\zipper-win64\zipper.exe -v
         $rc = $LASTEXITCODE
@@ -62,10 +64,11 @@ jobs:
         Get-ChildItem testrun
     - name: Verify archive contents
       run: |
+        expected=$(printf '%s\n' 1.dcm 2.dcm 3.dcm 4.dcm 5.dcm)
         for f in testrun/*.7z; do
-          n=$(bsdtar -tf "$f" | wc -l)
-          echo "$f: $n entries"
-          [ "$n" -eq 5 ] || { echo "ERROR: expected 5 entries in $f"; exit 1; }
+          actual=$(bsdtar -tf "$f" | sort)
+          echo "$f:" $actual
+          [ "$actual" = "$expected" ] || { echo "ERROR: unexpected entries in $f"; exit 1; }
         done
     - uses: actions/upload-artifact@v4
       with:
