@@ -34,7 +34,7 @@ all:	$(BINS)
 # fully expanded command.
 zipper zipper.exe:	$(OBJS)
 	@libs="$$($(PKG_CONFIG) $(PC_FLAGS) --libs libarchive)" && set -x && \
-	$(CC) -o $@ $^ $$libs $(STATIC_LDFLAGS)
+	$(CC) $(LDFLAGS) -o $@ $^ $$libs $(STATIC_LDFLAGS)
 
 %.o:	%.c
 	@cflags="$$($(PKG_CONFIG) $(PC_FLAGS) --cflags libarchive)" && set -x && \

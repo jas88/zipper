@@ -33,14 +33,40 @@ jobs:
         ldd zipper.exe | awk '$3 ~ /^\/usr\/bin\// {print $3}' | sort -u | xargs -r cp -t zipper-win64/
         ls -l zipper-win64
         bsdtar -a -cf zipper-win64.zip zipper-win64
-    # Outside MSYS, as a user would run it: only the bundled DLLs and
-    # System32 are available to the loader.
-    - name: Self-test using only the bundled DLLs
+    # Real run outside MSYS, as a user would launch it: only the bundled
+    # DLLs and System32 are available to the loader. zipper turns each
+    # numeric directory under the cwd into <name>.7z (via forked workers)
+    # and removes the directory, so check for exactly that.
+    - name: Integration test using only the bundled DLLs
       shell: pwsh
       run: |
+        $dirs = '0000000001', '0000000002'
+        foreach ($d in $dirs) {
+          New-Item -ItemType Directory -Path "testrun\$d" | Out-Null
+          foreach ($j in 1..5) {
+            $b = [byte[]]::new(65536)
+            [Security.Cryptography.RandomNumberGenerator]::Fill($b)
+            [IO.File]::WriteAllBytes("$PWD\testrun\$d\$j.dcm", $b)
+          }
+        }
         $env:PATH = "C:\Windows\System32"
-        & .\zipper-win64\zipper.exe -t
-        if ($LASTEXITCODE -ne 0) { throw "self-test exited $LASTEXITCODE" }
+        Push-Location testrun
+        & ..\zipper-win64\zipper.exe -v
+        $rc = $LASTEXITCODE
+        Pop-Location
+        if ($rc -ne 0) { throw "zipper exited $rc" }
+        foreach ($d in $dirs) {
+          if (-not (Test-Path "testrun\$d.7z")) { throw "testrun\$d.7z not created" }
+          if (Test-Path "testrun\$d") { throw "testrun\$d not removed" }
+        }
+        Get-ChildItem testrun
+    - name: Verify archive contents
+      run: |
+        for f in testrun/*.7z; do
+          n=$(bsdtar -tf "$f" | wc -l)
+          echo "$f: $n entries"
+          [ "$n" -eq 5 ] || { echo "ERROR: expected 5 entries in $f"; exit 1; }
+        done
     - uses: actions/upload-artifact@v4
       with:
         name: zipper-win64
