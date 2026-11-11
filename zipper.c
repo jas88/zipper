@@ -399,12 +399,13 @@ int main(int argc,char **argv) /*@globals stderr,errno;@*/ {
     /* libarchive's 7-Zip writer buffers into a temp file in $TMPDIR, else
      * /tmp. Run from an unpacked zip rather than an MSYS2/Cygwin install,
      * /tmp doesn't exist, so fall back to Windows' TMP/TEMP (the runtime
-     * converts both to POSIX paths at startup). */
-    if (getenv("TMPDIR")==NULL) {
+     * converts both to POSIX paths at startup). Empty values count as unset. */
+    const char *tmpdir=getenv("TMPDIR");
+    if (tmpdir==NULL || *tmpdir=='\0') {
         const char *tmp=getenv("TMP");
-        if (tmp==NULL)
+        if (tmp==NULL || *tmp=='\0')
             tmp=getenv("TEMP");
-        if (tmp!=NULL && setenv("TMPDIR",tmp,0)!=0)
+        if (tmp!=NULL && *tmp!='\0' && setenv("TMPDIR",tmp,1)!=0)
             die("setenv TMPDIR");
     }
 #endif
